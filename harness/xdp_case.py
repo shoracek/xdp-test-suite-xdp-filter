@@ -324,8 +324,8 @@ class XDPCaseNetwork(XDPCase):
                 conn.send((utils.ServerCommand.INTRODUCE, ))
                 remote = conn.recv()
                 # Custom context is prefered.
-                if ctx.remotes[i] is None:
-                    ctx.remotes[i] = remote
+                # if ctx.remotes[i] is None:
+                ctx.remotes[i] = remote
                 conn.close()
             except Exception as exception:
                 raise RuntimeError("Could not contact server.",
