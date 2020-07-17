@@ -198,6 +198,39 @@ class ManyAddresses(Base):
         output = subprocess.check_output([XDP_FILTER_EXEC, "status"])
         self.assertGreaterEqual(len(output.splitlines()), summed)
 
+    def get_invalid_address(self, bits, name,
+                            delimiter, format_string,
+                            parts_amount, full_size):
+        AMOUNT = 257
+
+        summed = 0
+        last_length = subprocess.check_output([XDP_FILTER_EXEC, "status"])
+        for gen_number in range(0, (1 << bits) - 1, int((1 << bits) / AMOUNT)):
+            summed += 1
+            subprocess.call([
+                XDP_FILTER_EXEC, name,
+                self.format_number(gen_number, delimiter,
+                                   format_string, parts_amount, full_size),
+                "--mode", "dst"])
+
+            new_length = subprocess.check_output([XDP_FILTER_EXEC, "status"])
+            if new_length == last_length:
+                return self.format_number(gen_number,
+                                          delimiter, format_string,
+                                          parts_amount, full_size)
+            last_length = new_length
+
+        return None
+
+    def test_much_ip_drop(self):
+        # -> seems to be only a problem in 'status'
+        missing = self.get_invalid_address(32, "ip", ".", "d", 8, 4)
+
+        to_send = self.generate_default_packets(dst_inet=missing)
+        res = self.send_packets(to_send)
+        self.not_arrived(to_send, res.captured_local,
+                         res.captured_remote)
+
     def test_much_ip(self):
         self.much_generic(32, "ip", ".", "d", 8, 4)
 
@@ -206,3 +239,15 @@ class ManyAddresses(Base):
 
     def test_much_ether(self):
         self.much_generic(48, "ether", ":", "02x", 8, 6)
+
+
+class ManyAddressesInverted(ManyAddresses):
+    def setUp(self):
+        subprocess.call([
+            XDP_FILTER_EXEC, "load",
+            "--policy", "deny",
+            self.get_contexts().get_local_main().iface,
+        ])
+
+    arrived = Direct.not_arrived
+    not_arrived = Direct.arrived
