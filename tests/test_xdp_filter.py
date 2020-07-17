@@ -18,27 +18,28 @@ class LoadUnload(XDPCase):
     def get_target_interface(self):
         return self.get_contexts().get_local_main().iface
 
-    def safeish(self, cmd):
+    def run_wrap(self, cmd):
         test = None
         try:
             test = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
 
-            self.msg = "TODO?"
+            self.msg = "Should not be seen!."
             return 0
         except subprocess.CalledProcessError as e:
-            self.msg = "'" + e.output.decode() + "'"
+            self.msg = "CAUTION!: All tests that follow will likely provide false result!. '" + \
+                e.output.decode() + "'"
             return e.returncode
 
     def unload(self):
-        return self.safeish([
+        return self.run_wrap([
             XDP_FILTER_EXEC, "unload",
             self.get_target_interface()
         ])
 
     def load(self):
-        return self.safeish([
+        return self.run_wrap([
             XDP_FILTER_EXEC, "load",
-            self.get_target_interface(), "--mode", "skb"
+            self.get_target_interface(),
         ])
 
     def test_load_once(self):
