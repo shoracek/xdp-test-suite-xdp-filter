@@ -131,7 +131,7 @@ class Direct(Base):
                          "--mode", "src"])
 
     @generic_drop(dst_port=60000)
-    def test_drop_port_src(self):
+    def test_drop_port_dst(self):
         subprocess.call([XDP_FILTER_EXEC, "port",
                          "60000",
                          "--mode", "dst"])
