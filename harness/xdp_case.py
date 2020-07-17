@@ -172,7 +172,11 @@ class XDPCase(unittest.TestCase):
                   f"found in list expected to be empty.")
 
     @classmethod
-    def generate_default_packets(cls, amount: int = 5) -> List[Packet]:
+    def generate_default_packets(
+            cls,
+            src_port: int = 50000, dst_port: int = 50000,
+            amount: int = 5
+    ) -> List[Packet]:
         """Generate a list of predefined UDP packets using context."""
         dst_ctx = cls.get_contexts().get_local_main()
         src_ctx = cls.get_contexts().get_remote_main()
@@ -185,7 +189,7 @@ class XDPCase(unittest.TestCase):
         to_send = [
             Ether(src=src_ctx.ether, dst=dst_ctx.ether) /
             ip_layer /
-            UDP(sport=7777, dport=7777) /
+            UDP(sport=src_port, dport=dst_port) /
             Raw(f"This is message number {i}.") for i in range(amount)
         ]
         return [Ether(p.build()) for p in to_send]
