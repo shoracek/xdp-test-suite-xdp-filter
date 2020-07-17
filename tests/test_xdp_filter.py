@@ -180,7 +180,7 @@ class ManyAddresses(Base):
 
     def much_generic(self, bits, name,
                      delimiter, format_string, part_size, full_size):
-        AMOUNT = 256
+        AMOUNT = 257
 
         summed = 0
         for gen_number in range(0, (1 << bits) - 1, int((1 << bits) / AMOUNT)):
