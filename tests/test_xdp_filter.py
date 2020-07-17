@@ -160,81 +160,44 @@ class DirectInverted(Direct):
 
 
 class ManyAddresses(Base):
-    def test_much_ip(self):
-        ip_list = []
-        s = 0
-        step = 70
-        for a in range(0, 255, step):
-            for b in range(0, 255, step):
-                for c in range(0, 255, step):
-                    for d in range(0, 255, step):
-                        new_ip = str(a) + "." + str(b) + "." + \
-                            str(c) + "." + str(d)
-                        ip_list.append(new_ip)
-                        s += 1
-                        subprocess.call([
-                            XDP_FILTER_EXEC, "ip",
-                            new_ip,
-                            "--mode", "dst"])
-                output = subprocess.check_output([XDP_FILTER_EXEC, "status"])
-                print(len(output.splitlines()))
+    def format_number(self, number,
+                      delimiter, format_string,
+                      part_size, full_size):
+        splitted = []
 
-        print("-----")
+        while number > 0:
+            splitted.append(int(number % (1 << part_size)))
+            number = number >> part_size
 
-        for a in range(0, 255, step):
-            for b in range(0, 255, step):
-                output = subprocess.check_output([XDP_FILTER_EXEC, "status"])
-                print(len(output.splitlines()), "->")
-                for c in range(0, 255, step):
-                    for d in range(0, 255, step):
-                        new_ip = str(a) + "." + str(b) + "." + \
-                            str(c) + "." + str(d)
-                        subprocess.call([
-                            XDP_FILTER_EXEC, "ip",
-                            new_ip,
-                            "--mode", "dst", "--remove"])
-                output = subprocess.check_output([XDP_FILTER_EXEC, "status"])
-                print(len(output.splitlines()))
-        print("-----")
-        # some ip addresses are not added, and can not be added in future
-        for a in range(0, 255, step):
-            for b in range(0, 255, step):
-                for c in range(0, 255, step):
-                    for d in range(0, 255, step):
-                        new_ip = str(a) + "." + str(b) + "." + \
-                            str(c) + "." + str(d)
-                        subprocess.call([
-                            XDP_FILTER_EXEC, "ip",
-                            new_ip,
-                            "--mode", "dst"])
-                output = subprocess.check_output([XDP_FILTER_EXEC, "status"])
-                print(len(output.splitlines()))
+        assert(len(splitted) <= full_size)
+        if (len(splitted) < full_size):
+            splitted += [0] * (full_size - len(splitted))
 
-        time.sleep(1)
+        splitted.reverse()
 
-        output = subprocess.check_output([XDP_FILTER_EXEC, "status"])
-        output2 = output.decode()
-        print(output2.splitlines())
-        print("--------")
-        for ip in ip_list:
-            if output2.find(ip) == -1:
-                print(ip)
+        return delimiter.join(format(s, format_string) for s in splitted)
 
-        self.assertGreaterEqual(len(output.splitlines()), s)
-
-    def test_much_port(self):
-        AMOUNT = 2048
+    def much_generic(self, bits, name,
+                     delimiter, format_string, part_size, full_size):
+        AMOUNT = 256
 
         summed = 0
-        for a in range(0, 1 << 16, int((1 << 16) / AMOUNT)):
+        for gen_number in range(0, (1 << bits) - 1, int((1 << bits) / AMOUNT)):
             summed += 1
             subprocess.call([
-                XDP_FILTER_EXEC, "port",
-                str(a),
+                XDP_FILTER_EXEC, name,
+                self.format_number(gen_number, delimiter,
+                                   format_string, part_size, full_size),
                 "--mode", "dst"])
-            # time.sleep(0.1)
 
-        time.sleep(1)
         output = subprocess.check_output([XDP_FILTER_EXEC, "status"])
-        self.assertGreaterEqual(
-            len(output.splitlines()), summed, output.splitlines())
+        self.assertGreaterEqual(len(output.splitlines()), summed)
+
+    def test_much_ip(self):
+        self.much_generic(32, "ip", ".", "d", 8, 4)
+
+    def test_much_port(self):
+        self.much_generic(16, "port", "", "d", 16, 1)
+
+    def test_much_ether(self):
+        self.much_generic(48, "ether", ":", "02x", 8, 6)
