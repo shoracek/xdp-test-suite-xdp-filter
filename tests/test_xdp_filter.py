@@ -11,7 +11,6 @@ XDP_FILTER_EXEC = "progs/xdp-filter-exec.sh"
 
 
 @usingCustomLoader
-@unittest.skip
 class LoadUnload(XDPCase):
     def setUp(self):
         self.msg = ""
@@ -31,7 +30,7 @@ class LoadUnload(XDPCase):
     def unload(self):
         return self.run_wrap([
             XDP_FILTER_EXEC, "unload",
-            self.get_target_interface()
+            self.get_target_interface(),
         ])
 
     def load(self):
@@ -67,15 +66,15 @@ class Base(XDPCase):
             self.assertPacketContainerEmpty(i)
 
     def setUp(self):
-        subprocess.call([
+        subprocess.check_output([
             XDP_FILTER_EXEC, "load",
             self.get_contexts().get_local_main().iface
-        ])
+        ], stderr=subprocess.STDOUT)
 
     def tearDown(self):
-        subprocess.call([
-            XDP_FILTER_EXEC, "unload", "--all",
-        ])
+        subprocess.check_output([
+            XDP_FILTER_EXEC, "unload", "--all"
+        ], stderr=subprocess.STDOUT)
 
 
 class Direct(Base):
