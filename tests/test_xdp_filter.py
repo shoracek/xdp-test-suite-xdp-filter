@@ -11,6 +11,7 @@ XDP_FILTER_EXEC = "progs/xdp-filter-exec.sh"
 
 
 @usingCustomLoader
+@unittest.skip
 class LoadUnload(XDPCase):
     def setUp(self):
         self.msg = ""
