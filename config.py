@@ -18,13 +18,17 @@ List of servers to be used while running a client.
 remote_server_ctxs = ContextClientList([
     new_virtual_ctx(
         ContextLocal("a_to_b", xdp_mode=XDPFlag.DRV_MODE,
-                     inet="192.168.3.1"),
+                     inet="192.168.3.1", inet6="fe80::388a:7eff:fe49:1111"),
         ContextCommunication("192.168.1.1"),
         "test_b",
         ContextLocal("b_to_a", xdp_mode=XDPFlag.DRV_MODE,
-                     inet="192.168.4.1"),
+                     inet="192.168.4.1", inet6="fe80::388a:7eff:fe49:2222"),
         ContextCommunication("192.168.1.2", 6000),
     ),
+])
+
+"""
+
     new_virtual_ctx(
         ContextLocal("a_to_c", xdp_mode=XDPFlag.DRV_MODE,
                      inet="192.168.5.1"),
@@ -34,4 +38,4 @@ remote_server_ctxs = ContextClientList([
                      inet="192.168.6.1"),
         ContextCommunication("192.168.2.2", 6001),
     ),
-])
+    """

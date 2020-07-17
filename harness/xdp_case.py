@@ -175,13 +175,15 @@ class XDPCase(unittest.TestCase):
     def generate_default_packets(
             cls,
             src_port: int = 50000, dst_port: int = 50000,
-            amount: int = 5
+            amount: int = 5,
+            use_inet6: bool = False,
     ) -> List[Packet]:
         """Generate a list of predefined UDP packets using context."""
         dst_ctx = cls.get_contexts().get_local_main()
         src_ctx = cls.get_contexts().get_remote_main()
 
-        if src_ctx.inet6 is not None and dst_ctx.inet6 is not None:
+        if use_inet6:
+            assert(src_ctx.inet6 is not None and dst_ctx.inet6 is not None)
             ip_layer = IPv6(src=src_ctx.inet6, dst=dst_ctx.inet6)
         else:
             ip_layer = IP(src=src_ctx.inet, dst=dst_ctx.inet)
