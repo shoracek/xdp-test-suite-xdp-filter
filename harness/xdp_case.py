@@ -2,7 +2,7 @@ import time
 import ctypes
 import multiprocessing.connection
 import errno
-from typing import List, Iterable
+from typing import List, Iterable, Optional
 import unittest
 
 from scapy.all import Ether, Packet, IP, IPv6, Ether, Raw, UDP
@@ -175,6 +175,7 @@ class XDPCase(unittest.TestCase):
     def generate_default_packets(
             cls,
             src_port: int = 50000, dst_port: int = 50000,
+            src_inet: Optional[str] = None, dst_inet: Optional[str] = None,
             amount: int = 5,
             use_inet6: bool = False,
     ) -> List[Packet]:
@@ -186,7 +187,8 @@ class XDPCase(unittest.TestCase):
             assert(src_ctx.inet6 is not None and dst_ctx.inet6 is not None)
             ip_layer = IPv6(src=src_ctx.inet6, dst=dst_ctx.inet6)
         else:
-            ip_layer = IP(src=src_ctx.inet, dst=dst_ctx.inet)
+            ip_layer = IP(src=src_inet if src_inet else src_ctx.inet,
+                          dst=dst_inet if dst_inet else dst_ctx.inet)
 
         to_send = [
             Ether(src=src_ctx.ether, dst=dst_ctx.ether) /

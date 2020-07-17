@@ -55,6 +55,21 @@ class _LoadUnload(XDPCase):
 
 @usingCustomLoader
 class Base(XDPCase):
+    def generic_drop(**args):
+        def inner_decor(func_to_decorate):
+            def new_func(self):
+                to_send = self.generate_default_packets(**args)
+
+                func_to_decorate(self)
+
+                res = self.send_packets(to_send)
+
+                self.not_arrived(to_send, res.captured_local,
+                                 res.captured_remote)
+
+            return new_func
+        return inner_decor
+
     def arrived(self, packets, captured_local, captured_remote):
         self.assertPacketsIn(packets, captured_local)
         for i in captured_remote:
@@ -85,58 +100,43 @@ class Direct(Base):
 
         self.arrived(to_send, res.captured_local, res.captured_remote)
 
-    def generic_drop(**args):
-        def inner_decor(func_to_decorate):
-            def new_func(self):
-                to_send = self.generate_default_packets(**args)
-
-                func_to_decorate(self)
-
-                res = self.send_packets(to_send)
-
-                self.not_arrived(to_send, res.captured_local,
-                                 res.captured_remote)
-
-            return new_func
-        return inner_decor
-
-    @generic_drop()
+    @Base.generic_drop()
     def test_drop_ether_src(self):
         subprocess.call([XDP_FILTER_EXEC, "ether",
                          self.get_contexts().get_remote_main().ether,
                          "--mode", "src"])
 
-    @generic_drop()
+    @Base.generic_drop()
     def test_drop_ether_dst(self):
         subprocess.call([XDP_FILTER_EXEC, "ether",
                          self.get_contexts().get_local_main().ether,
                          "--mode", "dst"])
 
-    @generic_drop()
+    @Base.generic_drop()
     def test_drop_ip_src(self):
         subprocess.call([XDP_FILTER_EXEC, "ip",
                          self.get_contexts().get_remote_main().inet,
                          "--mode", "src"])
 
-    @generic_drop()
+    @Base.generic_drop()
     def test_drop_ip_dst(self):
         subprocess.call([XDP_FILTER_EXEC, "ip",
                          self.get_contexts().get_local_main().inet,
                          "--mode", "dst"])
 
-    @generic_drop(src_port=60000)
+    @Base.generic_drop(src_port=60000)
     def test_drop_port_src(self):
         subprocess.call([XDP_FILTER_EXEC, "port",
                          "60000",
                          "--mode", "src"])
 
-    @generic_drop(dst_port=60000)
+    @Base.generic_drop(dst_port=60000)
     def test_drop_port_dst(self):
         subprocess.call([XDP_FILTER_EXEC, "port",
                          "60000",
                          "--mode", "dst"])
 
-    @generic_drop()
+    @Base.generic_drop()
     def test_drop_ipv4_to_ipv6_mapped(self):
         subprocess.call([XDP_FILTER_EXEC, "ip",
                          "::ffff:" + self.get_contexts().get_local_main().inet,
@@ -145,7 +145,7 @@ class Direct(Base):
     @unittest.skipIf(XDPCase.get_contexts().get_local_main().inet6 is None or
                      XDPCase.get_contexts().get_remote_main().inet6 is None,
                      "no inet6 address available")
-    @generic_drop(use_inet6=True)
+    @Base.generic_drop(use_inet6=True)
     def test_drop_ipv6_dst(self):
         subprocess.call([XDP_FILTER_EXEC, "ip",
                          self.get_contexts().get_local_main().inet6,
