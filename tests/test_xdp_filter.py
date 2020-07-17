@@ -11,6 +11,7 @@ XDP_FILTER_EXEC = "progs/xdp-filter-exec.sh"
 
 
 @usingCustomLoader
+@unittest.skip
 class LoadUnload(XDPCase):
     def setUp(self):
         self.msg = ""
@@ -19,16 +20,13 @@ class LoadUnload(XDPCase):
         return self.get_contexts().get_local_main().iface
 
     def run_wrap(self, cmd):
-        test = None
         try:
-            test = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-
-            self.msg = "Should not be seen!."
-            return 0
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+            return True
         except subprocess.CalledProcessError as e:
             self.msg = "CAUTION!: All tests that follow will likely provide false result!. '" + \
                 e.output.decode() + "'"
-            return e.returncode
+            return False
 
     def unload(self):
         return self.run_wrap([
@@ -43,17 +41,17 @@ class LoadUnload(XDPCase):
         ])
 
     def test_load_once(self):
-        self.assertNotEqual(self.unload(), 0, "zeroth unload " + self.msg)
-        self.assertEqual(self.load(), 0, "first load " + self.msg)
-        self.assertEqual(self.unload(), 0, "first unload " + self.msg)
-        self.assertNotEqual(self.unload(), 0, "second unload " + self.msg)
+        self.assertFalse(self.unload(), self.msg)
+        self.assertTrue(self.load(), self.msg)
+        self.assertTrue(self.unload(), self.msg)
+        self.assertFalse(self.unload(), self.msg)
 
     def test_load_twice(self):
-        self.assertNotEqual(self.unload(), 0, "zeroth unload " + self.msg)
-        self.assertEqual(self.load(), 0, "first load " + self.msg)
-        self.assertNotEqual(self.load(), 0, "second load " + self.msg)
-        self.assertEqual(self.unload(), 0, "first unload " + self.msg)
-        self.assertNotEqual(self.unload(), 0, "second unload " + self.msg)
+        self.assertFalse(self.unload(), self.msg)
+        self.assertTrue(self.load(), self.msg)
+        self.assertFalse(self.load(), self.msg)
+        self.assertTrue(self.unload(), self.msg)
+        self.assertFalse(self.unload(), self.msg)
 
 
 @usingCustomLoader
@@ -81,64 +79,78 @@ class Base(XDPCase):
 
 
 class Direct(Base):
-    def test_pass_ip_none_specified(self):
+    def test_pass_none_specified(self):
         to_send = self.generate_default_packets()
 
         res = self.send_packets(to_send)
 
         self.arrived(to_send, res.captured_local, res.captured_remote)
 
-    def test_drop_ip(self):
-        to_send = self.generate_default_packets()
+    def generic_drop(**args):
+        def inner_decor(func_to_decorate):
+            def new_func(self):
+                to_send = self.generate_default_packets(**args)
 
+                func_to_decorate(self)
+
+                res = self.send_packets(to_send)
+
+                self.not_arrived(to_send, res.captured_local,
+                                 res.captured_remote)
+
+            return new_func
+        return inner_decor
+
+    @generic_drop()
+    def test_drop_ether_src(self):
+        subprocess.call([XDP_FILTER_EXEC, "ether",
+                         self.get_contexts().get_remote_main().ether,
+                         "--mode", "src"])
+
+    @generic_drop()
+    def test_drop_ether_dst(self):
+        subprocess.call([XDP_FILTER_EXEC, "ether",
+                         self.get_contexts().get_local_main().ether,
+                         "--mode", "dst"])
+
+    @generic_drop()
+    def test_drop_ip_src(self):
         subprocess.call([XDP_FILTER_EXEC, "ip",
                          self.get_contexts().get_remote_main().inet,
                          "--mode", "src"])
 
-        res = self.send_packets(self.generate_default_packets())
-
-        self.not_arrived(to_send, res.captured_local, res.captured_remote)
-
+    @generic_drop()
     def test_drop_ip_dst(self):
-        to_send = self.generate_default_packets()
-
         subprocess.call([XDP_FILTER_EXEC, "ip",
                          self.get_contexts().get_local_main().inet,
                          "--mode", "dst"])
 
-        res = self.send_packets(to_send)
-
-        self.not_arrived(to_send, res.captured_local, res.captured_remote)
-
-    def test_drop_port_2(self):
-        to_send = self.generate_default_packets()
-
+    @generic_drop(src_port=60000)
+    def test_drop_port_src(self):
         subprocess.call([XDP_FILTER_EXEC, "port",
-                         str(1 << 16), "--mode", "src"])
+                         "60000",
+                         "--mode", "src"])
 
-        res = self.send_packets(to_send)
+    @generic_drop(dst_port=60000)
+    def test_drop_port_src(self):
+        subprocess.call([XDP_FILTER_EXEC, "port",
+                         "60000",
+                         "--mode", "dst"])
 
-        self.arrived(to_send, res.captured_local, res.captured_remote)
-
+    @generic_drop()
     def test_drop_ipv4_to_ipv6_mapped(self):
-        to_send = self.generate_default_packets()
-
         subprocess.call([XDP_FILTER_EXEC, "ip",
                          "::ffff:" + self.get_contexts().get_local_main().inet,
                          "--mode", "dst"])
 
-        res = self.send_packets(to_send)
-
-        self.not_arrived(to_send, res.captured_local, res.captured_remote)
-
-
-class DirectSKB(Direct):
-    def setUp(self):
-        subprocess.call([
-            XDP_FILTER_EXEC, "load",
-            "--mode", "skb",
-            self.get_contexts().get_local_main().iface,
-        ])
+    @unittest.skipIf(XDPCase.get_contexts().get_local_main().inet6 is None or
+                     XDPCase.get_contexts().get_remote_main().inet6 is None,
+                     "no inet6 address available")
+    @generic_drop(use_inet6=True)
+    def test_drop_ipv6_dst(self):
+        subprocess.call([XDP_FILTER_EXEC, "ip",
+                         self.get_contexts().get_local_main().inet6,
+                         "--mode", "dst"])
 
 
 class DirectInverted(Direct):
@@ -149,37 +161,30 @@ class DirectInverted(Direct):
             self.get_contexts().get_local_main().iface,
         ])
 
-    def arrived(self, packets, captured_local, captured_remote):
-        self.assertPacketsNotIn(packets, captured_local)
-        for i in captured_remote:
-            self.assertPacketContainerEmpty(i)
-
-    def not_arrived(self, packets, captured_local, captured_remote):
-        self.assertPacketsIn(packets, captured_local)
-        for i in captured_remote:
-            self.assertPacketContainerEmpty(i)
+    arrived = Direct.not_arrived
+    not_arrived = Direct.arrived
 
 
 class ManyAddresses(Base):
     def format_number(self, number,
                       delimiter, format_string,
-                      part_size, full_size):
+                      part_size, parts_amount):
         splitted = []
 
         while number > 0:
             splitted.append(int(number % (1 << part_size)))
             number = number >> part_size
 
-        assert(len(splitted) <= full_size)
-        if (len(splitted) < full_size):
-            splitted += [0] * (full_size - len(splitted))
+        assert(len(splitted) <= parts_amount)
+        if (len(splitted) < parts_amount):
+            splitted += [0] * (parts_amount - len(splitted))
 
         splitted.reverse()
 
         return delimiter.join(format(s, format_string) for s in splitted)
 
     def much_generic(self, bits, name,
-                     delimiter, format_string, part_size, full_size):
+                     delimiter, format_string, parts_amount, full_size):
         AMOUNT = 257
 
         summed = 0
@@ -188,7 +193,7 @@ class ManyAddresses(Base):
             subprocess.call([
                 XDP_FILTER_EXEC, name,
                 self.format_number(gen_number, delimiter,
-                                   format_string, part_size, full_size),
+                                   format_string, parts_amount, full_size),
                 "--mode", "dst"])
 
         output = subprocess.check_output([XDP_FILTER_EXEC, "status"])
