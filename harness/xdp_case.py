@@ -176,6 +176,7 @@ class XDPCase(unittest.TestCase):
             cls,
             src_port: int = 50000, dst_port: int = 50000,
             src_inet: Optional[str] = None, dst_inet: Optional[str] = None,
+            src_ether: Optional[str] = None, dst_ether: Optional[str] = None,
             amount: int = 5,
             use_inet6: bool = False,
     ) -> List[Packet]:
@@ -191,7 +192,8 @@ class XDPCase(unittest.TestCase):
                           dst=dst_inet if dst_inet else dst_ctx.inet)
 
         to_send = [
-            Ether(src=src_ctx.ether, dst=dst_ctx.ether) /
+            Ether(src=src_ether if src_ether else src_ctx.ether,
+                  dst=dst_ether if dst_ether else dst_ctx.ether) /
             ip_layer /
             UDP(sport=src_port, dport=dst_port) /
             Raw(f"This is message number {i}.") for i in range(amount)
