@@ -6,8 +6,19 @@ import signal
 import unittest
 
 from harness.xdp_case import XDPCase, usingCustomLoader
+from harness.utils import XDPFlag
 
 XDP_FILTER_EXEC = "progs/xdp-filter-exec.sh"
+
+
+def get_mode_string(xdp_mode: XDPFlag):
+    if xdp_mode == XDPFlag.SKB_MODE:
+        return "skb"
+    if xdp_mode == XDPFlag.DRV_MODE:
+        return "native"
+    if xdp_mode == XDPFlag.HW_MODE:
+        return "hw"
+    return None
 
 
 @usingCustomLoader
@@ -28,7 +39,10 @@ class _LoadUnload(XDPCase):
         return self.run_wrap([
             XDP_FILTER_EXEC, "load",
             self.get_contexts().get_local_main().iface,
-            "--verbose"
+            "--verbose",
+            "--mode", get_mode_string(
+                self.get_contexts().get_local_main().xdp_mode
+            )
         ])
 
     def unload(self):
@@ -78,7 +92,10 @@ class Base(XDPCase):
     def setUp(self):
         subprocess.check_output([
             XDP_FILTER_EXEC, "load",
-            self.get_contexts().get_local_main().iface
+            self.get_contexts().get_local_main().iface,
+            "--mode", get_mode_string(
+                self.get_contexts().get_local_main().xdp_mode
+            )
         ], stderr=subprocess.STDOUT)
 
     def tearDown(self):
@@ -125,9 +142,9 @@ class DirectDropSrc(Base):
     def test_port(self):
         self.drop_generic(str(self.get_port()), "port")
 
-    @unittest.skipIf(XDPCase.get_contexts().get_local_main().inet6 is None or
-                     XDPCase.get_contexts().get_remote_main().inet6 is None,
-                     "no inet6 address available")
+    @ unittest.skipIf(XDPCase.get_contexts().get_local_main().inet6 is None or
+                      XDPCase.get_contexts().get_remote_main().inet6 is None,
+                      "no inet6 address available")
     def test_ipv6(self):
         self.drop_generic(self.get_device().inet6, "ip", use_inet6=True)
 
@@ -138,6 +155,9 @@ class DirectPassSrc(DirectDropSrc):
             XDP_FILTER_EXEC, "load",
             "--policy", "deny",
             self.get_contexts().get_local_main().iface,
+            "--mode", get_mode_string(
+                self.get_contexts().get_local_main().xdp_mode
+            )
         ])
 
     arrived = DirectDropSrc.not_arrived
@@ -161,6 +181,9 @@ class DirectPassDst(DirectDropSrc):
             XDP_FILTER_EXEC, "load",
             "--policy", "deny",
             self.get_contexts().get_local_main().iface,
+            "--mode", get_mode_string(
+                self.get_contexts().get_local_main().xdp_mode
+            )
         ])
 
     arrived = DirectDropSrc.not_arrived
@@ -282,6 +305,9 @@ class ManyAddressesInverted(ManyAddresses):
             XDP_FILTER_EXEC, "load",
             "--policy", "deny",
             self.get_contexts().get_local_main().iface,
+            "--mode", get_mode_string(
+                self.get_contexts().get_local_main().xdp_mode
+            )
         ])
 
     arrived = DirectDropSrc.not_arrived
