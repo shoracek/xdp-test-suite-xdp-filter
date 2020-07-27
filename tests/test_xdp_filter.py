@@ -104,16 +104,7 @@ class Base(XDPCase):
         ], stderr=subprocess.STDOUT)
 
 
-class DirectDropSrc(Base):
-    def get_device(self):
-        return self.get_contexts().get_remote_main()
-
-    def get_port(self):
-        return self.src_port
-
-    def get_mode(self):
-        return "src"
-
+class DirectBase:
     def drop_generic(self, address, target, use_inet6=False):
         to_send = self.to_send6 if use_inet6 else self.to_send
 
@@ -142,29 +133,25 @@ class DirectDropSrc(Base):
     def test_port(self):
         self.drop_generic(str(self.get_port()), "port")
 
-    @ unittest.skipIf(XDPCase.get_contexts().get_local_main().inet6 is None or
-                      XDPCase.get_contexts().get_remote_main().inet6 is None,
-                      "no inet6 address available")
+    @unittest.skipIf(XDPCase.get_contexts().get_local_main().inet6 is None or
+                     XDPCase.get_contexts().get_remote_main().inet6 is None,
+                     "no inet6 address available")
     def test_ipv6(self):
         self.drop_generic(self.get_device().inet6, "ip", use_inet6=True)
 
 
-class DirectPassSrc(DirectDropSrc):
-    def setUp(self):
-        subprocess.call([
-            XDP_FILTER_EXEC, "load",
-            "--policy", "deny",
-            self.get_contexts().get_local_main().iface,
-            "--mode", get_mode_string(
-                self.get_contexts().get_local_main().xdp_mode
-            )
-        ])
+class BaseSrc:
+    def get_device(self):
+        return self.get_contexts().get_remote_main()
 
-    arrived = DirectDropSrc.not_arrived
-    not_arrived = DirectDropSrc.arrived
+    def get_port(self):
+        return self.src_port
+
+    def get_mode(self):
+        return "src"
 
 
-class DirectDropDst(DirectPassSrc):
+class BaseDst:
     def get_device(self):
         return self.get_contexts().get_local_main()
 
@@ -175,7 +162,7 @@ class DirectDropDst(DirectPassSrc):
         return "dst"
 
 
-class DirectPassDst(DirectDropSrc):
+class BaseInvert:
     def setUp(self):
         subprocess.call([
             XDP_FILTER_EXEC, "load",
@@ -186,17 +173,78 @@ class DirectPassDst(DirectDropSrc):
             )
         ])
 
-    arrived = DirectDropSrc.not_arrived
-    not_arrived = DirectDropSrc.arrived
+    arrived = Base.not_arrived
+    not_arrived = Base.arrived
 
-    def get_device(self):
-        return self.get_contexts().get_local_main()
 
-    def get_port(self):
-        return self.dst_port
+class DirectDropSrc(Base, DirectBase, BaseSrc):
+    pass
 
-    def get_mode(self):
-        return "dst"
+
+class DirectPassSrc(Base, DirectBase, BaseSrc, BaseInvert):
+    pass
+
+
+class DirectDropDst(Base, DirectBase, BaseDst):
+    pass
+
+
+class DirectPassDst(Base, DirectBase, BaseDst, BaseInvert):
+    pass
+
+
+class MaybeOK(Base):
+    def test_remove_ignores_protocols(self):
+        tcp_packets = self.generate_default_packets(
+            src_port=self.src_port, dst_port=self.dst_port, layer_4="tcp")
+        udp_packets = self.generate_default_packets(
+            src_port=self.src_port, dst_port=self.dst_port, layer_4="udp")
+
+        self.arrived(tcp_packets, self.send_packets(tcp_packets))
+        self.arrived(udp_packets, self.send_packets(udp_packets))
+
+        subprocess.call([XDP_FILTER_EXEC,
+                         "port", str(self.dst_port),
+                         "--mode", "dst",
+                         "--proto", "tcp"])
+        self.not_arrived(tcp_packets, self.send_packets(tcp_packets))
+        self.arrived(udp_packets, self.send_packets(udp_packets))
+
+        subprocess.call([XDP_FILTER_EXEC,
+                         "port", str(self.dst_port),
+                         "--mode", "dst",
+                         "--proto", "udp",
+                         "--remove"])
+        self.not_arrived(tcp_packets, self.send_packets(tcp_packets))
+        self.arrived(udp_packets, self.send_packets(udp_packets))
+
+    def test_remove_ignores_mode_inet(self):
+        self.arrived(self.to_send, self.send_packets(self.to_send))
+
+        subprocess.call([XDP_FILTER_EXEC,
+                         "ip", self.get_contexts().get_local_main().inet,
+                         "--mode", "dst"])
+        self.not_arrived(self.to_send, self.send_packets(self.to_send))
+
+        subprocess.call([XDP_FILTER_EXEC,
+                         "ip", self.get_contexts().get_local_main().inet,
+                         "--mode", "src",
+                         "--remove"])
+        self.not_arrived(self.to_send, self.send_packets(self.to_send))
+
+    def test_remove_ignores_mode_port(self):
+        self.arrived(self.to_send, self.send_packets(self.to_send))
+
+        subprocess.call([XDP_FILTER_EXEC,
+                         "port", str(self.dst_port),
+                         "--mode", "dst"])
+        self.not_arrived(self.to_send, self.send_packets(self.to_send))
+
+        subprocess.call([XDP_FILTER_EXEC,
+                         "port", str(self.dst_port),
+                         "--mode", "src",
+                         "--remove"])
+        self.not_arrived(self.to_send, self.send_packets(self.to_send))
 
 
 class ManyAddresses(Base):
@@ -310,5 +358,5 @@ class ManyAddressesInverted(ManyAddresses):
             )
         ])
 
-    arrived = DirectDropSrc.not_arrived
-    not_arrived = DirectDropSrc.arrived
+    arrived = Base.not_arrived
+    not_arrived = Base.arrived

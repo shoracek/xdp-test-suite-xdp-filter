@@ -5,7 +5,7 @@ import errno
 from typing import List, Iterable, Optional
 import unittest
 
-from scapy.all import Ether, Packet, IP, IPv6, Ether, Raw, UDP
+from scapy.all import Ether, Packet, IP, IPv6, Ether, Raw, UDP, TCP
 from bcc import BPF
 
 from . import utils, context
@@ -177,6 +177,7 @@ class XDPCase(unittest.TestCase):
             src_port: int = 50000, dst_port: int = 50000,
             src_inet: Optional[str] = None, dst_inet: Optional[str] = None,
             src_ether: Optional[str] = None, dst_ether: Optional[str] = None,
+            layer_4: str = "udp",
             amount: int = 5,
             use_inet6: bool = False,
     ) -> List[Packet]:
@@ -191,11 +192,18 @@ class XDPCase(unittest.TestCase):
             ip_layer = IP(src=src_inet if src_inet else src_ctx.inet,
                           dst=dst_inet if dst_inet else dst_ctx.inet)
 
+        if layer_4 == "udp":
+            transport_layer = UDP(sport=src_port, dport=dst_port)
+        elif layer_4 == "tcp":
+            transport_layer = TCP(sport=src_port, dport=dst_port)
+        else:
+            assert(False)
+
         to_send = [
             Ether(src=src_ether if src_ether else src_ctx.ether,
                   dst=dst_ether if dst_ether else dst_ctx.ether) /
             ip_layer /
-            UDP(sport=src_port, dport=dst_port) /
+            transport_layer /
             Raw(f"This is message number {i}.") for i in range(amount)
         ]
         return [Ether(p.build()) for p in to_send]
