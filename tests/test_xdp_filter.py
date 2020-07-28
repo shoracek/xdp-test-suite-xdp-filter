@@ -194,6 +194,29 @@ class DirectPassDst(Base, DirectBase, BaseDst, BaseInvert):
 
 
 class MaybeOK(Base):
+    def test_add_different_modes(self):
+        tcp_packets = self.generate_default_packets(
+            src_port=self.src_port, dst_port=self.dst_port, layer_4="tcp")
+        udp_packets = self.generate_default_packets(
+            src_port=self.src_port, dst_port=self.dst_port, layer_4="udp")
+
+        self.arrived(tcp_packets, self.send_packets(tcp_packets))
+        self.arrived(udp_packets, self.send_packets(udp_packets))
+
+        subprocess.call([XDP_FILTER_EXEC,
+                         "port", str(self.src_port),
+                         "--mode", "src",
+                         "--proto", "tcp"])
+        self.not_arrived(tcp_packets, self.send_packets(tcp_packets))
+        self.arrived(udp_packets, self.send_packets(udp_packets))
+
+        subprocess.call([XDP_FILTER_EXEC,
+                         "port", str(self.src_port),
+                         "--mode", "dst",
+                         "--proto", "udp"])
+        self.not_arrived(tcp_packets, self.send_packets(tcp_packets))
+        self.arrived(udp_packets, self.send_packets(udp_packets))
+
     def test_remove_ignores_protocols(self):
         tcp_packets = self.generate_default_packets(
             src_port=self.src_port, dst_port=self.dst_port, layer_4="tcp")
