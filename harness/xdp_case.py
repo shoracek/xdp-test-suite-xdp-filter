@@ -186,8 +186,10 @@ class XDPCase(unittest.TestCase):
         src_ctx = cls.get_contexts().get_remote_main()
 
         if use_inet6:
-            assert(src_ctx.inet6 is not None and dst_ctx.inet6 is not None)
-            ip_layer = IPv6(src=src_ctx.inet6, dst=dst_ctx.inet6)
+            assert(src_inet or src_ctx.inet6 is not None)
+            assert(dst_inet or dst_ctx.inet6 is not None)
+            ip_layer = IPv6(src=src_inet if src_inet else src_ctx.inet6,
+                            dst=dst_inet if dst_inet else dst_ctx.inet6)
         else:
             ip_layer = IP(src=src_inet if src_inet else src_ctx.inet,
                           dst=dst_inet if dst_inet else dst_ctx.inet)

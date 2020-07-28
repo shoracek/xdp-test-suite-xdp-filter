@@ -193,6 +193,27 @@ class DirectPassDst(Base, DirectBase, BaseDst, BaseInvert):
     pass
 
 
+class Extra(Base):
+    def test_mapped_address(self):
+        mapped_address = "::ffff:" + self.get_contexts().get_local_main().inet
+
+        packets = self.generate_default_packets(
+            dst_inet=mapped_address, use_inet6=True)
+
+        self.arrived(packets, self.send_packets(packets))
+
+        subprocess.call([XDP_FILTER_EXEC,
+                         "ip", mapped_address,
+                         "--mode", "dst"])
+        self.not_arrived(packets, self.send_packets(packets))
+
+        subprocess.call([XDP_FILTER_EXEC,
+                         "ip", mapped_address,
+                         "--mode", "dst",
+                         "--remove"])
+        self.arrived(packets, self.send_packets(packets))
+
+
 class MaybeOK(Base):
     def test_add_different_modes(self):
         tcp_packets = self.generate_default_packets(
