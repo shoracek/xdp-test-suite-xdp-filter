@@ -110,14 +110,14 @@ class DirectBase:
 
         self.arrived(to_send, self.send_packets(to_send))
 
-        subprocess.call([XDP_FILTER_EXEC, target, address,
-                         "--mode", self.get_mode()])
+        subprocess.run([XDP_FILTER_EXEC, target, address,
+                        "--mode", self.get_mode()])
 
         self.not_arrived(to_send, self.send_packets(to_send))
 
-        subprocess.call([XDP_FILTER_EXEC, target, address,
-                         "--mode", self.get_mode(),
-                         "--remove"])
+        subprocess.run([XDP_FILTER_EXEC, target, address,
+                        "--mode", self.get_mode(),
+                        "--remove"])
 
         self.arrived(to_send, self.send_packets(to_send))
 
@@ -164,7 +164,7 @@ class BaseDst:
 
 class BaseInvert:
     def setUp(self):
-        subprocess.call([
+        subprocess.run([
             XDP_FILTER_EXEC, "load",
             "--policy", "deny",
             self.get_contexts().get_local_main().iface,
@@ -202,15 +202,15 @@ class Extra(Base):
 
         self.arrived(packets, self.send_packets(packets))
 
-        subprocess.call([XDP_FILTER_EXEC,
-                         "ip", mapped_address,
-                         "--mode", "dst"])
+        subprocess.run([XDP_FILTER_EXEC,
+                        "ip", mapped_address,
+                        "--mode", "dst"])
         self.not_arrived(packets, self.send_packets(packets))
 
-        subprocess.call([XDP_FILTER_EXEC,
-                         "ip", mapped_address,
-                         "--mode", "dst",
-                         "--remove"])
+        subprocess.run([XDP_FILTER_EXEC,
+                        "ip", mapped_address,
+                        "--mode", "dst",
+                        "--remove"])
         self.arrived(packets, self.send_packets(packets))
 
 
@@ -224,17 +224,17 @@ class MaybeOK(Base):
         self.arrived(tcp_packets, self.send_packets(tcp_packets))
         self.arrived(udp_packets, self.send_packets(udp_packets))
 
-        subprocess.call([XDP_FILTER_EXEC,
-                         "port", str(self.src_port),
-                         "--mode", "src",
-                         "--proto", "tcp"])
+        subprocess.run([XDP_FILTER_EXEC,
+                        "port", str(self.src_port),
+                        "--mode", "src",
+                        "--proto", "tcp"])
         self.not_arrived(tcp_packets, self.send_packets(tcp_packets))
         self.arrived(udp_packets, self.send_packets(udp_packets))
 
-        subprocess.call([XDP_FILTER_EXEC,
-                         "port", str(self.src_port),
-                         "--mode", "dst",
-                         "--proto", "udp"])
+        subprocess.run([XDP_FILTER_EXEC,
+                        "port", str(self.src_port),
+                        "--mode", "dst",
+                        "--proto", "udp"])
         self.not_arrived(tcp_packets, self.send_packets(tcp_packets))
         self.arrived(udp_packets, self.send_packets(udp_packets))
 
@@ -247,47 +247,47 @@ class MaybeOK(Base):
         self.arrived(tcp_packets, self.send_packets(tcp_packets))
         self.arrived(udp_packets, self.send_packets(udp_packets))
 
-        subprocess.call([XDP_FILTER_EXEC,
-                         "port", str(self.dst_port),
-                         "--mode", "dst",
-                         "--proto", "tcp"])
+        subprocess.run([XDP_FILTER_EXEC,
+                        "port", str(self.dst_port),
+                        "--mode", "dst",
+                        "--proto", "tcp"])
         self.not_arrived(tcp_packets, self.send_packets(tcp_packets))
         self.arrived(udp_packets, self.send_packets(udp_packets))
 
-        subprocess.call([XDP_FILTER_EXEC,
-                         "port", str(self.dst_port),
-                         "--mode", "dst",
-                         "--proto", "udp",
-                         "--remove"])
+        subprocess.run([XDP_FILTER_EXEC,
+                        "port", str(self.dst_port),
+                        "--mode", "dst",
+                        "--proto", "udp",
+                        "--remove"])
         self.not_arrived(tcp_packets, self.send_packets(tcp_packets))
         self.arrived(udp_packets, self.send_packets(udp_packets))
 
     def test_remove_ignores_mode_inet(self):
         self.arrived(self.to_send, self.send_packets(self.to_send))
 
-        subprocess.call([XDP_FILTER_EXEC,
-                         "ip", self.get_contexts().get_local_main().inet,
-                         "--mode", "dst"])
+        subprocess.run([XDP_FILTER_EXEC,
+                        "ip", self.get_contexts().get_local_main().inet,
+                        "--mode", "dst"])
         self.not_arrived(self.to_send, self.send_packets(self.to_send))
 
-        subprocess.call([XDP_FILTER_EXEC,
-                         "ip", self.get_contexts().get_local_main().inet,
-                         "--mode", "src",
-                         "--remove"])
+        subprocess.run([XDP_FILTER_EXEC,
+                        "ip", self.get_contexts().get_local_main().inet,
+                        "--mode", "src",
+                        "--remove"])
         self.not_arrived(self.to_send, self.send_packets(self.to_send))
 
     def test_remove_ignores_mode_port(self):
         self.arrived(self.to_send, self.send_packets(self.to_send))
 
-        subprocess.call([XDP_FILTER_EXEC,
-                         "port", str(self.dst_port),
-                         "--mode", "dst"])
+        subprocess.run([XDP_FILTER_EXEC,
+                        "port", str(self.dst_port),
+                        "--mode", "dst"])
         self.not_arrived(self.to_send, self.send_packets(self.to_send))
 
-        subprocess.call([XDP_FILTER_EXEC,
-                         "port", str(self.dst_port),
-                         "--mode", "src",
-                         "--remove"])
+        subprocess.run([XDP_FILTER_EXEC,
+                        "port", str(self.dst_port),
+                        "--mode", "src",
+                        "--remove"])
         self.not_arrived(self.to_send, self.send_packets(self.to_send))
 
 
@@ -325,7 +325,7 @@ class ManyAddresses(Base):
         for address in self.generate_addresses(delimiter, format_string,
                                                parts_amount, full_size):
             summed += 1
-            subprocess.call([XDP_FILTER_EXEC, name, address, "--mode", "dst"])
+            subprocess.run([XDP_FILTER_EXEC, name, address, "--mode", "dst"])
 
         output = subprocess.check_output([XDP_FILTER_EXEC, "status"])
         self.assertGreaterEqual(len(output.splitlines()), summed)
@@ -393,7 +393,7 @@ class ManyAddresses(Base):
 
 class ManyAddressesInverted(ManyAddresses):
     def setUp(self):
-        subprocess.call([
+        subprocess.run([
             XDP_FILTER_EXEC, "load",
             "--policy", "deny",
             self.get_contexts().get_local_main().iface,
