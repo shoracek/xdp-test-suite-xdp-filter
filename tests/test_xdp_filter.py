@@ -194,24 +194,55 @@ class DirectPassDst(Base, DirectBase, BaseDst, BaseInvert):
 
 
 class Extra(Base):
-    def test_mapped_address(self):
-        mapped_address = "::ffff:" + self.get_contexts().get_local_main().inet
+    def test(self):
+        pass
 
-        packets = self.generate_default_packets(
-            dst_inet=mapped_address, use_inet6=True)
 
-        self.arrived(packets, self.send_packets(packets))
+class IPv4ToIPv6Mapping(Base):
+    def setUp(self):
+        super().setUp()
+
+        inet = self.get_contexts().get_local_main().inet
+
+        self.address_explicit = "::ffff:" + inet
+
+        inet6_split = [format(int(i), "02x") for i in inet.split(".")]
+        self.address_converted = "::ffff:" + \
+            inet6_split[0] + inet6_split[1] + ":" + \
+            inet6_split[2] + inet6_split[3]
+
+        self.packets = self.generate_default_packets(
+            dst_inet=self.address_explicit, use_inet6=True)
+        self.packets += self.generate_default_packets(
+            dst_inet=self.address_converted, use_inet6=True)
+
+    def test_filter_explicit_address(self):
+        self.arrived(self.packets, self.send_packets(self.packets))
 
         subprocess.run([XDP_FILTER_EXEC,
-                        "ip", mapped_address,
+                        "ip", self.address_explicit,
                         "--mode", "dst"])
-        self.not_arrived(packets, self.send_packets(packets))
+        self.not_arrived(self.packets, self.send_packets(self.packets))
 
         subprocess.run([XDP_FILTER_EXEC,
-                        "ip", mapped_address,
+                        "ip", self.address_explicit,
                         "--mode", "dst",
                         "--remove"])
-        self.arrived(packets, self.send_packets(packets))
+        self.arrived(self.packets, self.send_packets(self.packets))
+
+    def test_filter_converted_address(self):
+        self.arrived(self.packets, self.send_packets(self.packets))
+
+        subprocess.run([XDP_FILTER_EXEC,
+                        "ip", self.address_converted,
+                        "--mode", "dst"])
+        self.not_arrived(self.packets, self.send_packets(self.packets))
+
+        subprocess.run([XDP_FILTER_EXEC,
+                        "ip", self.address_converted,
+                        "--mode", "dst",
+                        "--remove"])
+        self.arrived(self.packets, self.send_packets(self.packets))
 
 
 class MaybeOK(Base):
