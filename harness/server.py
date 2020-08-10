@@ -64,6 +64,8 @@ def start_server(ctx):
                 watch_traffic(ctx.local.iface, conn)
             elif data[0] == utils.ServerCommand.INTRODUCE:
                 introduce_self(ctx.local, conn)
+        except Exception as e:
+            conn.send(e)
         finally:
             if conn:
                 conn.close()

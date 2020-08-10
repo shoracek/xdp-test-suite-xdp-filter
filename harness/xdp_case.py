@@ -384,7 +384,8 @@ class XDPCaseNetwork(XDPCase):
 
         response = main_conn.recv()
         if response != utils.ServerResponse.FINISHED:
-            self.fail("Unexpected situation while sending packets.")
+            self.fail(
+                "Unexpected situation while sending packets: " + str(response))
 
         server_results = []
         for conn in conn_list:
