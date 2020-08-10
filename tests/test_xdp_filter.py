@@ -5,6 +5,9 @@ import signal
 
 import unittest
 
+from scapy.all import (Ether, Packet, IP, IPv6, Raw,
+                       UDP, TCP, IPv6ExtHdrRouting)
+
 from harness.xdp_case import XDPCase, usingCustomLoader
 from harness.utils import XDPFlag
 
@@ -196,6 +199,24 @@ class DirectPassDst(Base, DirectBase, BaseDst, BaseInvert):
 class Extra(Base):
     def test(self):
         pass
+class IPv6ExtensionHeader(Base):
+    def test_one(self):
+        packets = [Ether() /
+                   IPv6() / IPv6ExtHdrRouting() /
+                   UDP(dport=55555)] * 5
+
+        self.arrived(packets, self.send_packets(packets))
+
+        subprocess.run([XDP_FILTER_EXEC,
+                        "port", "55555",
+                        "--mode", "dst"])
+        self.not_arrived(packets, self.send_packets(packets))
+
+        subprocess.run([XDP_FILTER_EXEC,
+                        "port", "55555",
+                        "--mode", "dst",
+                        "--remove"])
+        self.arrived(packets, self.send_packets(packets))
 
 
 class IPv4ToIPv6Mapping(Base):
