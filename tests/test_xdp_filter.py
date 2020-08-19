@@ -25,7 +25,7 @@ def get_mode_string(xdp_mode: XDPFlag):
 
 
 @usingCustomLoader
-class _LoadUnload(XDPCase):
+class LoadUnload(XDPCase):
     def setUp(self):
         self.msg = "WARNING: All tests that follow will likely provide false result.\n"
 
@@ -38,13 +38,13 @@ class _LoadUnload(XDPCase):
         self.msg += "\n"
         return r.returncode == 0
 
-    def load(self):
+    def load(self, mode=None):
         return self.run_wrap([
             XDP_FILTER_EXEC, "load",
             self.get_contexts().get_local_main().iface,
             "--verbose",
             "--mode", get_mode_string(
-                self.get_contexts().get_local_main().xdp_mode
+                mode if mode else self.get_contexts().get_local_main().xdp_mode
             )
         ])
 
@@ -66,6 +66,12 @@ class _LoadUnload(XDPCase):
         self.assertTrue(self.load(), self.msg)
         self.assertFalse(self.load(), self.msg)
         self.assertTrue(self.unload(), self.msg)
+        self.assertFalse(self.unload(), self.msg)
+
+    def test_load_hw(self):
+        self.assertFalse(self.unload(), self.msg)
+        self.load(mode=XDPFlag.HW_MODE), self.msg
+        self.unload(), self.msg
         self.assertFalse(self.unload(), self.msg)
 
 
@@ -154,53 +160,12 @@ class BaseSrc:
         return "src"
 
 
-class BaseDst:
-    def get_device(self):
-        return self.get_contexts().get_local_main()
-
-    def get_port(self):
-        return self.dst_port
-
-    def get_mode(self):
-        return "dst"
-
-
-class BaseInvert:
-    def setUp(self):
-        subprocess.run([
-            XDP_FILTER_EXEC, "load",
-            "--policy", "deny",
-            self.get_contexts().get_local_main().iface,
-            "--mode", get_mode_string(
-                self.get_contexts().get_local_main().xdp_mode
-            )
-        ])
-
-    arrived = Base.not_arrived
-    not_arrived = Base.arrived
-
-
 class DirectDropSrc(Base, DirectBase, BaseSrc):
     pass
 
 
-class DirectPassSrc(Base, DirectBase, BaseSrc, BaseInvert):
-    pass
-
-
-class DirectDropDst(Base, DirectBase, BaseDst):
-    pass
-
-
-class DirectPassDst(Base, DirectBase, BaseDst, BaseInvert):
-    pass
-
-
-class Extra(Base):
-    def test(self):
-        pass
 class IPv6ExtensionHeader(Base):
-    def test_one(self):
+    def test(self):
         packets = [Ether() /
                    IPv6() / IPv6ExtHdrRouting() /
                    UDP(dport=55555)] * 5
@@ -343,116 +308,48 @@ class MaybeOK(Base):
         self.not_arrived(self.to_send, self.send_packets(self.to_send))
 
 
-class ManyAddresses(Base):
-    def format_number(self, number,
-                      delimiter, format_string,
-                      part_size, parts_amount):
-        splitted = []
+class Status(Base):
+    def setUp(self): 
+        pass
 
-        while number > 0:
-            splitted.append(int(number % (1 << part_size)))
-            number = number >> part_size
-
-        assert(len(splitted) <= parts_amount)
-        if (len(splitted) < parts_amount):
-            splitted += [0] * (parts_amount - len(splitted))
-
-        splitted.reverse()
-
-        return delimiter.join(format(s, format_string) for s in splitted)
-
-    def generate_addresses(self,
-                           delimiter, format_string, parts_amount, full_size):
-        AMOUNT = 257
-
-        bits = parts_amount * full_size
-
-        for gen_number in range(0, (1 << bits) - 1, int((1 << bits) / AMOUNT)):
-            yield self.format_number(gen_number, delimiter,
-                                     format_string, parts_amount, full_size)
-
-    def filter_addresses(self, name,
-                         delimiter, format_string, parts_amount, full_size):
-        summed = 0
-        for address in self.generate_addresses(delimiter, format_string,
-                                               parts_amount, full_size):
-            summed += 1
-            subprocess.run([XDP_FILTER_EXEC, name, address, "--mode", "dst"])
-
-        output = subprocess.check_output([XDP_FILTER_EXEC, "status"])
-        self.assertGreaterEqual(len(output.splitlines()), summed)
-
-    def get_invalid_address(self, name,
-                            delimiter, format_string,
-                            parts_amount, full_size):
-        """
-        Try to add addresses to xdp-filter,
-        return address that does not get added.
-        """
-
-        last_length = subprocess.check_output([XDP_FILTER_EXEC, "status"])
-        for address in self.generate_addresses(delimiter, format_string,
-                                               parts_amount, full_size):
-            new_length = subprocess.check_output(
-                [XDP_FILTER_EXEC, name, address, "--mode", "dst", "--status"])
-
-            if new_length == last_length:
-                return address
-            last_length = new_length
-
-        return None
-
-    def test_ip_arrive(self):
-        missing = self.get_invalid_address("ip", ".", "d", 8, 4)
-
-        if missing is None:
-            return
-
-        to_send = self.generate_default_packets(dst_inet=missing)
-        res = self.send_packets(to_send)
-        self.not_arrived(to_send, res)
-
-    def test_ether_arrive(self):
-        # -> seems to be only a problem in 'status'
-        missing = self.get_invalid_address("ether", ":", "02x", 8, 6)
-
-        if missing is None:
-            return
-
-        to_send = self.generate_default_packets(dst_ether=missing)
-        res = self.send_packets(to_send)
-        self.not_arrived(to_send, res)
-
-    def test_port_arrive(self):
-        missing = self.get_invalid_address("port", "", "d", 16, 1)
-
-        if missing is None:
-            return
-
-        to_send = self.generate_default_packets(dst_port=missing)
-        res = self.send_packets(to_send)
-        self.not_arrived(to_send, res)
-
-    def test_ip_status(self):
-        self.filter_addresses("ip", ".", "d", 8, 4)
-
-    def test_port_status(self):
-        self.filter_addresses("port", "", "d", 16, 1)
-
-    def test_ether_status(self):
-        self.filter_addresses("ether", ":", "02x", 8, 6)
-
-
-class ManyAddressesInverted(ManyAddresses):
-    def setUp(self):
-        subprocess.run([
+    def load(self, features):
+        return subprocess.run([
             XDP_FILTER_EXEC, "load",
-            "--policy", "deny",
             self.get_contexts().get_local_main().iface,
             "--mode", get_mode_string(
                 self.get_contexts().get_local_main().xdp_mode
-            )
+            ),
+            "--features", features,
         ])
 
-    arrived = Base.not_arrived
-    not_arrived = Base.arrived
+    def get_status(self):
+        return subprocess.run(
+            [XDP_FILTER_EXEC, "status"], capture_output=True
+        ).stdout.decode()
+
+    def test_ethernet_feature(self):
+        self.load("ethernet")
+        self.check_status("ether", self.get_contexts().get_local_main().ether)
+
+    def test_ipv4_feature(self):
+        self.load("ipv4")
+        self.check_status("ip", self.get_contexts().get_local_main().inet)
+
+    def test_udp_feature(self):
+        self.load("udp")
+        self.check_status("port", str(self.dst_port))
+
+    def test_all_features(self):
+        self.load("all")
+        self.check_status("ether", self.get_contexts().get_local_main().ether)
+        self.check_status("ip", self.get_contexts().get_local_main().inet)
+        self.check_status("port", str(self.dst_port))
+
+    def check_status(self, subcommand, address):
+        self.assertEqual(self.get_status().find(address), -1)
+
+        subprocess.run([XDP_FILTER_EXEC, subcommand, address])
+        self.assertNotEqual(self.get_status().find(address), -1)
+
+        subprocess.run([XDP_FILTER_EXEC, subcommand, address, "--remove"])
+        self.assertEqual(self.get_status().find(address), -1)
