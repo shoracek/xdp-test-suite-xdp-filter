@@ -11,7 +11,8 @@ from scapy.all import (Ether, Packet, IP, IPv6, Raw,
 from harness.xdp_case import XDPCase, usingCustomLoader
 from harness.utils import XDPFlag
 
-XDP_FILTER_EXEC = "progs/xdp-filter-exec.sh"
+# XDP_FILTER_EXEC = "progs/xdp-filter-exec.sh"
+XDP_FILTER_EXEC = "xdp-filter"
 
 
 def get_mode_string(xdp_mode: XDPFlag):
