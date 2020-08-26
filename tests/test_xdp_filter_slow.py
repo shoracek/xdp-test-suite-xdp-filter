@@ -11,7 +11,7 @@ from scapy.all import (Ether, Packet, IP, IPv6, Raw,
 from harness.xdp_case import XDPCase, usingCustomLoader
 from harness.utils import XDPFlag
 
-XDP_FILTER_EXEC = "progs/xdp-filter-exec.sh"
+from tests.test_xdp_filter import Base, XDP_FILTER_EXEC
 
 class ManyAddresses(Base):
     def format_number(self, number,
@@ -111,3 +111,19 @@ class ManyAddresses(Base):
 
     def test_ether_status(self):
         self.filter_addresses("ether", ":", "02x", 8, 6)
+
+
+class ManyAddressesInverted(ManyAddresses):
+    def setUp(self):
+        subprocess.run([
+            XDP_FILTER_EXEC, "load",
+            "--policy", "deny",
+            self.get_contexts().get_local_main().iface,
+            "--mode", get_mode_string(
+                self.get_contexts().get_local_main().xdp_mode
+            )
+        ])
+
+    arrived = Base.not_arrived
+    not_arrived = Base.arrived
+
