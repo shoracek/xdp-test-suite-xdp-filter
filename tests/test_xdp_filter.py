@@ -202,9 +202,9 @@ class DirectPassDst(Base, DirectBase, BaseDst, BaseInvert):
 
 
 class IPv6ExtensionHeader(Base):
-    def test(self):
+    def generic(self, extensions):
         packets = [Ether() /
-                   IPv6() / IPv6ExtHdrRouting() /
+                   IPv6() / extensions /
                    UDP(dport=55555)] * 5
 
         self.arrived(packets, self.send_packets(packets))
@@ -219,6 +219,18 @@ class IPv6ExtensionHeader(Base):
                         "--mode", "dst",
                         "--remove"])
         self.arrived(packets, self.send_packets(packets))
+
+    def test_routing(self):
+        self.generic(scapy.layers.inet6.IPv6ExtHdrRouting())
+
+    def test_hop_by_hop(self):
+        self.generic(scapy.layers.inet6.IPv6ExtHdrHopByHop())
+
+    def test_destination_options(self):
+        self.generic(scapy.layers.inet6.IPv6ExtHdrDestOpt())
+
+    def test_fragment(self):
+        self.generic(scapy.layers.inet6.IPv6ExtHdrFragment())
 
 
 class IPv4ToIPv6Mapping(Base):
